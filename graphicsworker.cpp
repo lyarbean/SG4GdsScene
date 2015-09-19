@@ -18,13 +18,14 @@
  */
 
 #include "graphicsworker.h"
-#include "graphicsscene.h"
 
 #include <QDebug>
 #include <QFile>
 #include <QVariant>
+#include <QTime>
 
-namespace bean {
+namespace bean
+{
 GraphicsWorker::GraphicsWorker(QObject *parent) : m_scene(0)
 {
     moveToThread(&m_thread);
@@ -40,7 +41,8 @@ void GraphicsWorker::setScene(GraphicsScene *scene)
 // Calling this function is not safe if the worker is busy.
 void GraphicsWorker::loadGdsFile(const QString &fileName)
 {
-    QMutexLocker locker(&m_mutex);
+    QTime time;
+    time.start();
     m_items.clear();
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -66,13 +68,9 @@ void GraphicsWorker::loadGdsFile(const QString &fileName)
     // begin loop it
     quint64 layer_data_type = -1;
     qreal count = 0;
-    // TODO use QMap<quint64, QPolygonF> map to cache as many as polygons and then emit at once
-    QVector<QPolygonF> polygons;
+    QVector<QVector<QPointF>> polygons;
+    polygons.reserve(1e7);
     while (d < l) {
-//         if (count > 500000) {
-//             //qDebug() << "Too many";
-//             // return;
-//         }
         QByteArray type(d, 4);
         if (type.at(0) == '\0') {
             qDebug() << "Oops";
@@ -81,108 +79,109 @@ void GraphicsWorker::loadGdsFile(const QString &fileName)
         d += 4;
         if (type == "LAYE") {
             quint64 t = *((quint64 *)(d));
+            d += 8;
             if (layer_data_type != t) {
                 if (!polygons.empty()) {
-//                     emit hasPolygons(layer_data_type, polygons);
                     addPolygons(layer_data_type, polygons);
                     polygons.clear();
                 }
                 layer_data_type = t;
             }
-            d += 8;
         } else if (type == "LINE") {
             int point_amount = *((int *)(d));
             d += 4;
             if (point_amount) {
-                // QJsonArray line_json;
-                QPolygonF p;
+                QVector<QPointF> p;
                 for (int i = 0; i < point_amount; ++i) {
                     double x = *((double *)(d));
                     double y = *((double *)(d + 8));
                     d += 16;
-                    count++;
                     p.append( {x, y});
                 }
-                //                 if (point_amount > 2) {
-                //                     qDebug() << "L->P: " << point_amount << "points";
                 polygons.append(p);
-                // emit hasPolygon(layer_data_type, p);
-                //                 } else {
-                //                     qDebug() << "L: " << point_amount << "points";
-                // lines_samples[layer_data_type].append(p);
-                //emit hasPolygon(layer_data_type, p);
-                //                 }
-            } else {
-                //                 qDebug() << "L: Empty";
             }
         } else if (type == "POLY") {
             int point_amount = *((int *)(d));
             d += 4;
             if (point_amount) {
-                //                 qDebug() << "P: " << point_amount << "points";
-                QPolygonF p;
-                //  QJsonArray polygon_json;
+                QVector<QPointF> p;
                 for (int i = 0; i < point_amount; ++i) {
                     double x = *((double *)(d));
                     double y = *((double *)(d + 8));
                     d += 16;
-                    count++;
                     p.append( {x, y});
                 }
-                // polygons_samples[layer_data_type].append(p);
                 polygons.append(p);
-                //emit hasPolygon(layer_data_type, p);
-            } else {
-                //                 qDebug() << "P: Empty";
             }
-        } else {
-            //             qDebug() << "kk " << type;
         }
     }
+
     if (!polygons.empty()) {
         addPolygons(layer_data_type, polygons);
     }
-    if (!m_items.empty()) {
-        if (m_scene) {
-            QMetaObject::invokeMethod(m_scene, "addItems", Qt::BlockingQueuedConnection, Q_ARG(QVariantList, m_items));
-            m_items.clear();
-        }
+    quint64 c = 0;
+    for (auto & i : m_itemData) {
+        c += i.count();
     }
-    m_itemData.clear();
-    qDebug() << count;
+    quint64 c2 = 0;
+    for (auto & i : m_items) {
+        c2 += i.count();
+    }
+    qDebug() << c << m_itemData.count() << m_items.count() << c2;
+    qDebug() << "Item creation: " << time.elapsed();
+    time.restart();
+    QMetaObject::invokeMethod(m_scene, "detachViews", Qt::BlockingQueuedConnection);
+    qDebug() << "Detach views: " << time.elapsed();
+    time.restart();
+    for (auto k : m_items.keys()) {
+        QMetaObject::invokeMethod(m_scene, "addItems", Qt::BlockingQueuedConnection, Q_ARG(QItemVector, m_items[k]), Q_ARG(quint64, k));
+    }
+    qDebug() << "Item insertion: " << time.elapsed();
+    time.restart();
+    QMetaObject::invokeMethod(m_scene, "attachViews", Qt::BlockingQueuedConnection);
+    qDebug() << "Attach views: " << time.elapsed();
+    
+
 }
 
-void GraphicsWorker::addPolygons(quint64 index, const QVector< QPolygonF > &polygons)
+void GraphicsWorker::addPolygons(quint64 index, const QVector<QVector<QPointF> > &polygons)
 {
     static int newCounter = 0;
     static int newCounter2 = 0;
-    for (auto polygon : polygons) {
+//     QVariantList items;
+    QItemVector &items = m_items[index];
+//     items.reserve(polygons.size());
+//     qDebug() << index << polygons.size();
+    // FIXME It's too slow to create items
+    for (auto & polygon : polygons) {
         QExplicitlySharedDataPointer<GraphicsPolygonItemPrivateData> d;
-        auto offset = polygon.boundingRect().topLeft();
-        auto p = polygon.translated(-offset);
-        for (auto data : m_itemData) {
-            if (data->m_polygon == p) {
-                d = data;
-//                 newCounter2++;
-                break;
-            }
-        }
-        if (!d) {
-//             newCounter++;
-            d = new GraphicsPolygonItemPrivateData(p);
-            m_itemData.append(d);
-        }
+        QPolygonF p(polygon);
+        auto offset = p.boundingRect().topLeft();
+        p = p.translated(-offset);
+//         auto r = p.boundingRect();
+//         auto &itemData = m_itemData[quint64(r.width()*r.height())];
+//         for (auto & data : itemData) {// TODO When m_itemData is large, performance gets impacted
+//             if (data->m_polygon == p) {
+//                 d = data;
+//                 break;
+//             }
+//         }
+//         if (!d) {
+        d = new GraphicsPolygonItemPrivateData(p);
+//             itemData.append(d);
+//         }
         auto item = new GraphicsPolygonItem(offset, d);
-        item->setData(1, index);
         item->setFlags(QGraphicsItem::ItemIsSelectable);
-        m_items.append(QVariant::fromValue<QGraphicsItem *>(item));
+        item->setZValue(index);
+        items.append(item);
     }
-    if (m_items.size() > 1e5) {
-        if (m_scene) {
-            QMetaObject::invokeMethod(m_scene, "addItems", Qt::BlockingQueuedConnection, Q_ARG(QVariantList, m_items));
-            m_items.clear();
-        }
-    }
-//     qDebug() << newCounter << newCounter2;
+//     qDebug() << index << items.count();
+    // TODO add to temparory list, group into 9 areas
+//     QMetaObject::invokeMethod(m_scene, "addItems", Qt::BlockingQueuedConnection, Q_ARG(QItemVector, items), Q_ARG(quint64, index));
+//     if (items.size() > 1e4) {
+//         QThread::usleep(10);
+//     }
+//     QThread::yieldCurrentThread();
 }
+
 }

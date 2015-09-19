@@ -2,6 +2,7 @@
 #include "graphicsscene.h"
 #include "graphicsview.h"
 #include "graphicsworker.h"
+#include "layoutmodel.h"
 
 #include <QMenu>
 #include <QMenuBar>
@@ -15,13 +16,17 @@
 #include <QApplication>
 #include <QDebug>
 
+#include <QDockWidget>
+#include <QListView>
+#include <QTableView>
 namespace bean {
-mainwindow::mainwindow() : m_scene(new GraphicsScene(this)), m_view(new GraphicsView(m_scene)), m_worker(new GraphicsWorker)
+mainwindow::mainwindow() : m_scene(new GraphicsScene), m_view(new GraphicsView(m_scene)), m_worker(new GraphicsWorker)
 {
     // The central view
     setCentralWidget(m_view);
     centralWidget()->resize( {800, 600});
     m_worker->setScene(m_scene);
+
     // Menubar
     auto menu = menuBar()->addMenu("File");
 
@@ -50,23 +55,17 @@ mainwindow::mainwindow() : m_scene(new GraphicsScene(this)), m_view(new Graphics
     auto toolbar = new QToolBar("Edit", this);
     addToolBar(Qt::TopToolBarArea, toolbar);
     // QGraphicsItem::ItemIsSelectable
-    auto selectableAction = toolbar->addAction("Enable selection");
-//     selectableAction->setIcon(QIcon("/usr/share/icons/gnome/32x32/actions/edit-select-all.png"));
+    auto selectableAction = toolbar->addAction("Selectable");
+    selectableAction->setIcon(QIcon(":/images/edit-select.svg"));
     selectableAction->setCheckable(true);
 #if QT_VERSION >= 0x050000
     connect(selectableAction, &QAction::triggered, [selectableAction, this]() {
         bool checked = selectableAction->isChecked();
-//         QMetaObject::invokeMethod(this->m_scene, "setItemFlag", Qt::QueuedConnection,
-//                                   Q_ARG(QGraphicsItem::GraphicsItemFlag, QGraphicsItem::ItemIsSelectable),
-//                                   Q_ARG(bool, checked));
         this->m_scene->setItemFlag(QGraphicsItem::ItemIsSelectable, checked);
-//         for (auto item : this->m_scene->items()) {
-//             item->setFlag(QGraphicsItem::ItemIsSelectable, checked);
-//         }
     });
 #endif
-    auto movableAction = toolbar->addAction("Enable moving"); // FIXME wording
-//     movableAction->setIcon(QIcon("/usr/share/icons/gnome/32x32/actions/edit-copy.png"));
+    auto movableAction = toolbar->addAction("Movable"); // FIXME wording
+    movableAction->setIcon(QIcon(":/images/transform-move.svg"));
     movableAction->setCheckable(true);
 #if QT_VERSION >= 0x050000
     connect(movableAction, &QAction::triggered, [movableAction, this]() {
@@ -81,10 +80,10 @@ mainwindow::mainwindow() : m_scene(new GraphicsScene(this)), m_view(new Graphics
 //     noDragAction->setIcon(QIcon("/usr/share/icons/gnome/32x32/actions/edit-copy.png"));
     noDragAction->setCheckable(true);
     auto rubberBandDragAction = toolbar->addAction("Rubber band drag");
-//     rubberBandDragAction->setIcon(QIcon("/usr/share/icons/gnome/32x32/actions/edit-copy.png"));
+    rubberBandDragAction->setIcon(QIcon(":/images/zoom-draw.svg"));
     rubberBandDragAction->setCheckable(true);
     auto scrollHandDragAction = toolbar->addAction("Scroll hand drag");
-//     scrollHandDragAction->setIcon(QIcon("/usr/share/icons/gnome/32x32/actions/edit-copy.png"));
+    scrollHandDragAction->setIcon(QIcon(":/images/zoom-draw.svg"));
     scrollHandDragAction->setCheckable(true);
 
     auto dragGroup = new QActionGroup(this);
@@ -104,19 +103,25 @@ mainwindow::mainwindow() : m_scene(new GraphicsScene(this)), m_view(new Graphics
     });
 #endif
 //@}
-    auto colorizeAction = toolbar->addAction("Color"); // FIXME wording
-    auto refreshAction =  toolbar->addAction("Repaint"); // FIXME wording
     auto centerAction =  toolbar->addAction("Center on"); // FIXME wording
+    centerAction->setIcon(QIcon(":/images/zoom-fit-best.svg"));
 #if QT_VERSION >= 0x050000
     connect(centerAction, &QAction::triggered, [this]() {
         QRectF rect = this->m_scene->itemsBoundingRect();
+        qDebug() << rect;
         this->m_view->setSceneRect(rect.adjusted(-1, -1, 1, 1));
         this->m_view->fitInView(rect, Qt::KeepAspectRatio);
     });
 #else
     connect(centerAction, SIGNAL(triggered()), this, SLOT(onCenterOn()));
 #endif
-    resize( {800, 600});
+    auto dock = new QDockWidget(this);
+    addDockWidget(Qt::LeftDockWidgetArea, dock);
+    auto model = new LayoutModel(m_scene, this);
+    auto v = new QTableView(this);
+    v->setModel(model);
+    dock->setWidget(v);
+    resize( {800, 700});
 }
 
 mainwindow::~mainwindow()

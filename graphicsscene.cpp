@@ -28,16 +28,9 @@
 #include <QPainter>
 #include <QFile>  // loadGdsFile
 
-namespace bean {
-/*!
- \class QsvGraphicsScene
-\fn resetBrushes
-Clear all brushes for each index
+namespace bean
+{
 
-\fn resetPens
-Clear all pens for each index
-
-*/
 
 // Pens
 QMap<quint64, QPen> GraphicsScene::pens() const
@@ -99,10 +92,11 @@ QBrush GraphicsScene::brush(quint64 index) const
     if (d_ptr->m_brushes.find(index) != d_ptr->m_brushes.end()) {
         return d_ptr->m_brushes [index];
     }
-    return QBrush(QColor(Qt::GlobalColor(index % 10 + 7)),  Qt::BrushStyle(index % 15));
+    return  QBrush(QColor(Qt::GlobalColor(index % 10 + 7)),  Qt::SolidPattern);
 }
 void GraphicsScene::setBrush(quint64 index, QBrush brush)
 {
+    // TODO check if set the same
     d_func()->m_brushes.insert(index, brush);
     emit brushChanged(index);
 }
@@ -123,6 +117,29 @@ void GraphicsScene::setCompositionMode(int compositionMode)
         d_ptr->m_compositionMode = compositionMode;
     }
 }
+
+// NOTE As all items at same stack has the same visibility, we just test one item at that stack
+bool GraphicsScene::isVisible(quint64 stack) const
+{
+    if (d_ptr->m_stacks.constFind(stack) != d_ptr->m_stacks.constEnd()) {
+        return d_ptr->m_stacks.value(stack);
+    }
+    return false;
+}
+
+void GraphicsScene::setVisible(quint64 stack, bool enabled)
+{
+    if (d_ptr->m_stacks.constFind(stack) == d_ptr->m_stacks.constEnd()) {
+        return;
+    }
+    d_ptr->m_stacks[stack] = enabled;
+    for (auto item : items()) {
+        if (item->zValue() == stack) {
+            item->setVisible(enabled);
+        }
+    }
+}
+
 
 QGraphicsItem::GraphicsItemFlag GraphicsScene::itemFlags() const
 {
@@ -148,20 +165,29 @@ void GraphicsScene::setItemFlag(QGraphicsItem::GraphicsItemFlag flag, bool enabl
     }
 }
 
-
-QRectF GraphicsScene::itemsBoundingRect()
+QList< quint64 > GraphicsScene::stacks() const
 {
-    return QGraphicsScene::itemsBoundingRect();
+    return d_ptr->m_stacks.keys();
 }
 
+
+
+// QRectF GraphicsScene::itemsBoundingRect()
+// {
+//     return QGraphicsScene::itemsBoundingRect();
+// }
+//
 
 
 GraphicsScene::GraphicsScene(QObject *parent): QGraphicsScene(parent), d_ptr(new GraphicsScenePrivate(this))
 {
 #if QT_VERSION >= 0x050000
-    setMinimumRenderSize(.1);
+    setMinimumRenderSize(0.1);
 #endif
-    setBspTreeDepth(10); // Time preferred
+    setBspTreeDepth(7); // Time preferred
+//     setItemIndexMethod(NoIndex);
+//     this->moveToThread(&m_thread);
+//     m_thread.start();
 }
 
 
@@ -169,21 +195,63 @@ GraphicsScene::~GraphicsScene()
 {
 }
 
-void GraphicsScene::addItems(const QVariantList items)
+// 2cm x 2cm
+constexpr quint64 gap = 5; // sqaure width
+constexpr quint64 N = 2e7/gap; // 2e4
+
+void GraphicsScene::addItems(const QItemVector itemVector, const quint64 stack)
 {
-    // Retain views
-    auto v = views();
-    for (auto view : v) {
+    Q_D(GraphicsScene);
+    if (itemVector.empty()) {
+        return;
+    }
+    if (this->items().empty()) {
+        d_ptr->m_stacks.clear();
+        emit stacksChanged();
+    }
+    for (auto item : itemVector) {
+        // TODO static_cast and retrieve directly
+        // Check item's rect and topleft
+        auto itemRect = item->boundingRect();
+        auto x = quint64(item->pos().x() / gap);
+        auto y = quint64(item->pos().y() / gap);
+        quint64 k = x * N + y;
+        if (itemRect.width() <= gap && itemRect.height() <= gap) {
+            if (d->m_blocks.constFind(k) == d->m_blocks.constEnd()) {
+                d->m_blocks.insert(k, item);
+                addItem(item);
+            } else {
+                auto itemBlock = d->m_blocks[k];
+                // Adjust offset
+                item->setPos(item->pos() - itemBlock->pos());
+                item->setParentItem(itemBlock);
+            }
+        } else {
+            addItem(item);
+        }
+    }
+    d->m_stacks.insert(stack, true);
+    emit stacksChanged();
+}
+void GraphicsScene::detachViews()
+{
+    Q_D(GraphicsScene);
+    d->m_views = views();
+    for (auto view : d->m_views) {
+        view->setViewportUpdateMode(QGraphicsView::NoViewportUpdate);
         view->setScene(0);
     }
-//     QCoreApplication::processEvents(); // Update on screen takes long time then do it now
-    for (auto item : items) {
-        addItem(item.value<QGraphicsItem *>());
-    }
-    for (auto view : v) {
+}
+
+void GraphicsScene::attachViews()
+{
+    Q_D(GraphicsScene);
+    for (auto view : d->m_views) {
+        view->setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
         view->setScene(this);
     }
 }
+
 
 }
 

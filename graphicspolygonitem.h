@@ -24,10 +24,13 @@
 namespace bean {
 class GraphicsPolygonItemPrivate;
 class GraphicsPolygonItemPrivateData;
+
+/*!
+ \class GraphicsPolygonItem
+ */
 class GraphicsPolygonItem : public QGraphicsItem
 {
 public:
-
 //     QsvGraphicsPolygonItem ( QGraphicsItem *parent = 0 );
     GraphicsPolygonItem ( const QPointF &offset, const QExplicitlySharedDataPointer<GraphicsPolygonItemPrivateData>& data, QGraphicsItem *parent = 0 );
     virtual void paint ( QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget ) override;
@@ -37,6 +40,7 @@ public:
     enum {
         Type = UserType + 8
     };
+    // TODO Mouse events
 private:
     Q_DECLARE_PRIVATE(GraphicsPolygonItem)
     const QScopedPointer<GraphicsPolygonItemPrivate>  d_ptr;

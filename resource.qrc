@@ -1,0 +1,9 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+    <file>images/edit-select.svg</file>
+    <file>images/transform-move.svg</file>
+    <file>images/edit-select-all.svg</file>
+    <file>images/zoom-draw.svg</file>
+    <file>images/zoom-fit-best.svg</file>
+</qresource>
+</RCC>

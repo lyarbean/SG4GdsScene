@@ -22,12 +22,11 @@
 #include <QWheelEvent>
 #include <QDebug>
 #include <QTime>
-
+#include <QtMath>
 namespace bean {
 GraphicsView::GraphicsView(QGraphicsScene *scene, QWidget *parent): QGraphicsView(scene, parent)
 {
-    setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
-    setAttribute(Qt::WA_OpaquePaintEvent, true);
+//     setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
 }
 
 GraphicsView::~GraphicsView()
@@ -46,10 +45,9 @@ void GraphicsView::wheelEvent(QWheelEvent *event)
         double by = 1.f;
 #if QT_VERSION >= 0x050000
         double angle = event->angleDelta().y(); // +- 120
-        if (angle >  0) {
-            by = 2.f;
-        } else if (angle < 0) {
-            by = .5f;
+        //TODO
+        if (angle !=  0) {
+            by = qPow(1.5f, angle/120);
         }
 #else
         int angle = event->delta(); //
@@ -60,10 +58,11 @@ void GraphicsView::wheelEvent(QWheelEvent *event)
         }
 #endif
         if (!((transform().m11() <= 1 && by < 1.) || (transform().m11() >= 2048 && by > 1.))) {
-//                 qDebug() << transform().m11();
             setTransform(QTransform::fromScale(by, by), true);
         }
         event->accept();
+//         if (scene())
+//         scene()->setSceneRect(mapToScene(viewport()->rect()).boundingRect());
         return;
     }
 
@@ -73,16 +72,13 @@ void GraphicsView::wheelEvent(QWheelEvent *event)
 //     }
 }
 
-namespace
-{
-static QTime tickTime;
-}
 
 void GraphicsView::paintEvent(QPaintEvent *event)
 {
-//     tickTime.start();
+    static QTime tickTime;
+    tickTime.restart();
     QGraphicsView::paintEvent(event);
-//     qDebug() << tickTime.elapsed() << "milliseconds";
+    qDebug() << "Paint view:" << tickTime.elapsed() << "milliseconds";
 }
 
 // void QsvGraphicsView::resizeEvent(QResizeEvent *event)

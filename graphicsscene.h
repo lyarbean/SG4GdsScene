@@ -23,21 +23,24 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QMap>
+#include <QSet>
+#include <QThread>
 
-namespace bean {
+namespace bean
+{
 class GraphicsItem;
 class GraphicsScenePrivate;
 
-
+typedef QVector<QGraphicsItem*> QItemVector;
 class GraphicsScene : public QGraphicsScene
 {
     Q_OBJECT
     // Use the following typedef's to work around Q_PROPERTY, please refer to The Property System
     typedef QMap<quint64, QPen> Pens;
     typedef QMap<quint64, QBrush> Brushes;
-    Q_PROPERTY(Pens m_pens READ pens WRITE setPens RESET resetPens NOTIFY pensChanged)
-    Q_PROPERTY(Brushes m_brushes READ brushes WRITE setBrushes RESET resetBrushes NOTIFY brushesChanged)
-    Q_PROPERTY(int m_compositionMode READ compositionMode WRITE setCompositionMode) // TODO NOTIFY
+    Q_PROPERTY ( Pens m_pens READ pens WRITE setPens RESET resetPens NOTIFY pensChanged )
+    Q_PROPERTY ( Brushes m_brushes READ brushes WRITE setBrushes RESET resetBrushes NOTIFY brushesChanged )
+    Q_PROPERTY ( int m_compositionMode READ compositionMode WRITE setCompositionMode ) // TODO NOTIFY
 public:
 
     GraphicsScene ( QObject *parent =0 );
@@ -45,51 +48,60 @@ public:
 
     // Pens
     QMap<quint64, QPen> pens() const;
-    void setPens(QMap<quint64, QPen> pens);
+    void setPens ( QMap<quint64, QPen> pens );
     void resetPens();
     // Brushes
     QMap<quint64, QBrush> brushes() const;
-    void setBrushes(QMap<quint64, QBrush> brushes);
+    void setBrushes ( QMap<quint64, QBrush> brushes );
     void resetBrushes();
     // Pen
-    QPen pen(quint64 index) const;
-    void setPen(quint64 index, QPen pen);
-    void resetPen(quint64);
+    QPen pen ( quint64 index ) const;
+    void setPen ( quint64 index, QPen pen );
+    void resetPen ( quint64 );
     // Brush
-    QBrush brush(quint64 index) const;
-    void setBrush(quint64 index, QBrush brush);
-    void resetBrush(quint64 index);
+    QBrush brush ( quint64 index ) const;
+    void setBrush ( quint64 index, QBrush brush );
+    void resetBrush ( quint64 index );
     // CompositionMode
     int compositionMode() const;
-    void setCompositionMode(int compositionMode);
+    void setCompositionMode ( int compositionMode );
+
+    bool isVisible ( quint64 stack ) const;
+    void setVisible ( quint64 stack, bool enabled = true );
     // ItemFlag
     // Use this flag as a global flag to decide whether item's flag
     // To work with move/focus, we need to override mousePressEvent/mousePressEvent
     QGraphicsItem::GraphicsItemFlag itemFlags() const;
-    Q_INVOKABLE void setItemFlag(QGraphicsItem::GraphicsItemFlag flag, bool enabled = true);
+    Q_INVOKABLE void setItemFlag ( QGraphicsItem::GraphicsItemFlag flag, bool enabled = true );
 
     // INVOKABLEs
-    Q_INVOKABLE QRectF itemsBoundingRect();
+//     Q_INVOKABLE QRectF itemsBoundingRect();
+
+    QList<quint64> stacks() const;
 
 signals:
     void pensChanged();
     void brushesChanged();
-    void penChanged(quint64 index);
-    void brushChanged(quint64 index);
+    void penChanged ( quint64 index );
+    void brushChanged ( quint64 index );
+    void stacksChanged();
 public slots:
-    void addItems (const QVariantList items);
+//     void addItems ( const QVariantList items );
+    void addItems ( const QItemVector items, const quint64 key = 0);
+    void detachViews();
+    void attachViews();
 // protected:
 //     virtual void mouseMoveEvent(QGraphicsSceneMouseEvent * event);
 //     virtual void mousePressEvent(QGraphicsSceneMouseEvent * event);
 //     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent * event);
-//     void render(QPainter * painter, const QRectF & target = QRectF(), const QRectF & source = QRectF(), Qt::AspectRatioMode aspectRatioMode = Qt::KeepAspectRatio);
+//     void render(QPainter * painter, const QRectF & target = QRectF(), const QRectF & slource = QRectF(), Qt::AspectRatioMode aspectRatioMode = Qt::KeepAspectRatio);
 private:
     GraphicsScene ( const GraphicsScene &other ) = delete;
     GraphicsScene &operator= ( const GraphicsScene &other ) = delete;
     bool operator== ( const GraphicsScene &other ) const = delete;
 
 private:
-    Q_DECLARE_PRIVATE(GraphicsScene)
+    Q_DECLARE_PRIVATE ( GraphicsScene )
     const QScopedPointer<GraphicsScenePrivate>  d_ptr;
 };
 }

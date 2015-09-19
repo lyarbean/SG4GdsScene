@@ -21,20 +21,23 @@
 #define GRAPHICSWORKER_H
 
 #include "graphicspolygonitem_p.h"
+#include "graphicsscene.h"
+
 
 #include <QObject>
 #include <QThread>
 #include <QMutex>
+
 #include <QExplicitlySharedDataPointer>
 
 namespace bean {
 class GraphicsScene;
 
 /*!
-  \class QsvGraphicsWorker
-   \brief QsvGraphicsWorker is a class that used to load gds file and create QsvGraphicsPolygonItems.
-   QsvGraphicsWorker runs at its own thread, and  populate items to QsvGraphicsScene using BlockingQueuedConnection,
-   so that the main thread that QsvGraphicsScene lives receives items in sequence.
+  \class GraphicsWorker
+  \brief GraphicsWorker is a class that used to load gds file and create GraphicsPolygonItems.
+   GraphicsWorker runs at its own thread, and  populate items to QsvGraphicsScene using BlockingQueuedConnection,
+   so that the main thread that GraphicsScene lives receives items in sequence.
 
 */
  
@@ -47,20 +50,13 @@ public:
     void setScene(GraphicsScene* scene);
     // TODO Slot
     Q_INVOKABLE void loadGdsFile(const QString &fileName);
-// signals:
-//     void hasPolygon(quint64 index, const QPolygonF& polygon);
-//     void hasPolygons(quint64 index, const QVector<QPolygonF>& polygons);
-// public slots:
-//     void onHasPolygon ( quint64 index, const QPolygonF &polygon );
-//     void onHasPolygons ( quint64 index, const QVector<QPolygonF> &polygons );
 private:
-    void addPolygons ( quint64 index, const QVector<QPolygonF> &polygons );
+    void addPolygons ( quint64 index, const QVector<QVector<QPointF>> &polygons );
 private:
     GraphicsScene* m_scene;
     QThread m_thread;
-    QMutex m_mutex;
-    QVariantList m_items;
-    QList<QExplicitlySharedDataPointer<GraphicsPolygonItemPrivateData> > m_itemData;
+    QMap<quint64, QList<QExplicitlySharedDataPointer<GraphicsPolygonItemPrivateData>>> m_itemData;
+    QMap<quint64, QItemVector> m_items;
 };
 }
 #endif // GRAPHICSWORKER_H

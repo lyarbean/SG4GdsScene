@@ -21,7 +21,8 @@ class GraphicsPolygonItemPrivateData : public QSharedData
     QPainterPath m_painterPath;
 };
 /*!
- \class QsvGraphicsPolygonItemPrivate holds data for QsvGraphicsPolygonItem
+ \class GraphicsPolygonItemPrivate
+ holds data for QsvGraphicsPolygonItem
  
  \brief To save memory, QsvGraphicsPolygonItemPrivate doesn't retain QsvGraphicsPolygonItem's pointer,
  hence also make QsvGraphicsPolygonItemPrivate public accessible.
